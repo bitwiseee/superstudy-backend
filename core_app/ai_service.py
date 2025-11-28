@@ -1,34 +1,35 @@
 import os
-import asyncio
 import logging
 import hashlib
 from django.core.cache import cache
-from pypdf import PdfReader
+import fitz  # PyMuPDF (Standardizing to use the same lib as utils.py)
 from pptx import Presentation
 import google.generativeai as genai
-import edge_tts
+from gtts import gTTS
 
 logger = logging.getLogger(__name__)
 
 # --- CONFIGURATION ---
-# Configure the standard Gemini library
 api_key = os.environ.get("GEMINI_API_KEY")
 if not api_key:
     logger.warning("GEMINI_API_KEY not found in environment variables.")
 
-genai.configure(api_key=api_key)
+# Pylance often flags 'configure' as missing due to dynamic loading. 
+# The type: ignore comment suppresses this false positive.
+genai.configure(api_key=api_key) # type: ignore
 
-# Initialize the model (Standard 1.5 Flash is best for large context)
-model = genai.GenerativeModel('gemini-1.5-flash')
+# Using 1.5 Flash for the large context window (1M tokens)
+model = genai.GenerativeModel('gemini-1.5-flash') # type: ignore
 
 # --- HELPERS ---
 
 def get_stable_hash(text):
     """
     Creates a consistent hash of text for caching.
-    Python's built-in hash() is random per session (salt), which breaks caching 
-    across server restarts.
+    Safely handles None or non-string inputs.
     """
+    if not isinstance(text, str):
+        text = ""
     return hashlib.md5(text.encode('utf-8', errors='ignore')).hexdigest()
 
 # --- FILE EXTRACTION ---
@@ -38,23 +39,26 @@ def extract_text_from_file(file_path):
     Standard text extraction for PDF, PPTX, and TXT.
     Returns stripped text or empty string on error.
     """
+    if not file_path:
+        return ""
+
     ext = os.path.splitext(file_path)[1].lower()
     text = ""
     
     try:
         if ext == '.pdf':
-            reader = PdfReader(file_path)
-            for page in reader.pages:
-                page_text = page.extract_text()
-                if page_text:
-                    text += page_text + "\n"
+            # Switched to fitz (PyMuPDF) to match core/utils.py
+            with fitz.open(file_path) as doc:
+                for page in doc:
+                    text += str(page.get_text()) + "\n"
         
         elif ext in ['.pptx', '.ppt']:
             prs = Presentation(file_path)
             for slide in prs.slides:
                 for shape in slide.shapes:
-                    if hasattr(shape, "text"):
-                        text += shape.text + "\n"
+                    # Fix: python-pptx shapes use text_frame, not .text directly
+                    if hasattr(shape, "has_text_frame") and shape.has_text_frame:
+                         text += shape.text_frame.text + "\n" # type: ignore
         
         elif ext == '.txt':
             with open(file_path, 'r', encoding='utf-8') as f:
@@ -65,168 +69,203 @@ def extract_text_from_file(file_path):
         logger.error(f"Error extracting text from {file_path}: {e}")
         return ""
 
-# --- AI GENERATION ---
+# --- AI FEATURES ---
 
 def get_ai_response(document_text, user_question, language='en', document_title=""):
     """
-    Get AI response using standard google.generativeai library.
+    General Chat: Answers student questions based on the document.
     """
-    # Create stable cache key
-    text_hash = get_stable_hash(document_text[:1000]) # Hash first 1000 chars to identify doc
+    # Safety Check: Ensure document_text is a string
+    if document_text is None:
+        document_text = ""
+
+    text_hash = get_stable_hash(document_text[:1000])
     q_hash = get_stable_hash(user_question)
-    cache_key = f"ai_resp_{text_hash}_{q_hash}_{language}"
+    cache_key = f"ai_chat_{text_hash}_{q_hash}_{language}"
     
-    # Check cache
     cached_response = cache.get(cache_key)
     if cached_response:
-        logger.info("Returning cached AI response")
         return cached_response
     
-    # Language mapping
-    language_names = {
-        'en': 'English', 'yo': 'Yoruba', 'sw': 'Swahili', 
-        'ha': 'Hausa', 'zu': 'Zulu', 'ig': 'Igbo', 
-        'fr': 'French', 'pt': 'Portuguese'
-    }
-    lang_name = language_names.get(language, 'English')
-    
-    # System Prompt (Context)
-    # Gemini 1.5 Flash has a 1M token window, so we pass the full text.
-    # We cap it at ~500k chars to be safe (approx 125k tokens), leaving plenty of room.
-    safe_context = document_text[:500000]
+    lang_map = {'en': 'English', 'yo': 'Yoruba', 'sw': 'Swahili', 'ha': 'Hausa', 
+                'zu': 'Zulu', 'ig': 'Igbo', 'fr': 'French', 'pt': 'Portuguese'}
+    lang_name = lang_map.get(language, 'English')
     
     prompt = f"""
-    You are an AI tutor for African students. Use the provided document to answer the question.
-    
+    You are an AI tutor for African students.
     Document Title: {document_title}
     
-    Document Content:
-    {safe_context}
+    Context:
+    {document_text[:500000]}
     
-    ---
-    User Question: {user_question}
-    ---
+    Question: {user_question}
     
     Instructions:
-    1. Answer primarily based on the document content.
-    2. Be educational, encouraging, and clear.
-    3. Use African context/examples where applicable.
-    4. Respond in {lang_name}.
+    1. Answer based on the context.
+    2. Be educational and encouraging.
+    3. Respond in {lang_name}.
     """
     
     try:
-        # Standard generation call
-        response = model.generate_content(
-            prompt,
-            generation_config=genai.types.GenerationConfig(
-                temperature=0.3,
-                max_output_tokens=1000,
-            )
-        )
-        
+        response = model.generate_content(prompt)
         answer = response.text
-        
-        # Cache for 1 hour
         cache.set(cache_key, answer, 3600)
         return answer
-        
     except Exception as e:
-        logger.error(f"Gemini API Error: {e}")
-        return "I encountered an error analyzing the document. Please try again."
+        logger.error(f"Chat Error: {e}")
+        return "Error generating response."
 
-def generate_document_insights(document_text, language='en'):
+def generate_summary(document_text, language='en'):
     """
-    Generate summaries and quiz questions.
+    Generates a concise summary of the document.
     """
+    if document_text is None:
+        document_text = ""
+
     text_hash = get_stable_hash(document_text[:1000])
-    cache_key = f"doc_insights_{text_hash}_{language}"
+    cache_key = f"ai_summary_{text_hash}_{language}"
     
-    cached_insights = cache.get(cache_key)
-    if cached_insights:
-        return cached_insights
-    
-    safe_context = document_text[:500000]
-    
+    cached_summary = cache.get(cache_key)
+    if cached_summary:
+        return cached_summary
+
+    lang_map = {'en': 'English', 'yo': 'Yoruba', 'sw': 'Swahili', 'ha': 'Hausa', 
+                'zu': 'Zulu', 'ig': 'Igbo', 'fr': 'French', 'pt': 'Portuguese'}
+    lang_name = lang_map.get(language, 'English')
+
     prompt = f"""
-    Analyze this document and provide a summary structure.
+    Read the following document and provide a comprehensive summary.
     
     Document Content:
-    {safe_context}
+    {document_text[:500000]}
     
-    Task:
-    1. Provide a 2-sentence summary.
-    2. List 3 key topics.
-    3. Suggest 2 study questions.
+    Output Format:
+    1. **Executive Summary**: 3-4 sentences capturing the main idea.
+    2. **Key Points**: Bullet points of the most important concepts.
+    3. **Conclusion**: A one-sentence takeaway.
     
-    Output Language: {language}
+    Language: {lang_name}
     """
     
     try:
         response = model.generate_content(prompt)
-        insights = response.text
-        cache.set(cache_key, insights, 7200) # Cache for 2 hours
-        return insights
+        summary = response.text
+        cache.set(cache_key, summary, 86400) # Cache for 24 hours
+        return summary
     except Exception as e:
-        logger.error(f"Insights Error: {e}")
-        return "Insights unavailable."
+        logger.error(f"Summary Error: {e}")
+        return "Error generating summary."
 
-def generate_quiz_questions(document_text, num_questions=3):
+def generate_flashcards(document_text, num_cards=5):
     """
-    Generate multiple choice questions.
+    Generates flashcards (Term vs Definition) from the document.
     """
-    safe_context = document_text[:500000]
+    if document_text is None:
+        document_text = ""
+
+    text_hash = get_stable_hash(document_text[:1000])
+    cache_key = f"ai_flashcards_{text_hash}_{num_cards}"
     
+    cached_cards = cache.get(cache_key)
+    if cached_cards:
+        return cached_cards
+
     prompt = f"""
-    Create {num_questions} multiple-choice questions based on this text.
-    Format:
-    Q: [Question]
-    A) [Option] ...
-    Correct: [Answer]
+    Create {num_cards} study flashcards based on the important concepts in this text.
     
-    Text:
-    {safe_context}
+    Document Content:
+    {document_text[:500000]}
+    
+    Format EXACTLY as follows for parsing:
+    Card 1:
+    Term: [Concept Name]
+    Definition: [Clear, simple explanation]
+    
+    Card 2:
+    Term: ...
+    Definition: ...
     """
     
     try:
         response = model.generate_content(prompt)
-        return response.text
+        cards = response.text
+        cache.set(cache_key, cards, 86400)
+        return cards
+    except Exception as e:
+        logger.error(f"Flashcard Error: {e}")
+        return "Error generating flashcards."
+
+def generate_quiz(document_text, num_questions=3):
+    """
+    Generates a multiple choice quiz based on the document.
+    """
+    if document_text is None:
+        document_text = ""
+
+    text_hash = get_stable_hash(document_text[:1000])
+    cache_key = f"ai_quiz_{text_hash}_{num_questions}"
+    
+    cached_quiz = cache.get(cache_key)
+    if cached_quiz:
+        return cached_quiz
+
+    prompt = f"""
+    Generate a {num_questions}-question multiple choice quiz based on this text.
+    
+    Document Content:
+    {document_text[:500000]}
+    
+    Format:
+    Q1: [Question]
+    A) [Option]
+    B) [Option]
+    C) [Option]
+    D) [Option]
+    Correct Answer: [Letter]
+    Explanation: [Why it is correct]
+    
+    Q2: ...
+    """
+    
+    try:
+        response = model.generate_content(prompt)
+        quiz = response.text
+        cache.set(cache_key, quiz, 86400)
+        return quiz
     except Exception as e:
         logger.error(f"Quiz Error: {e}")
-        return "Quiz generation failed."
+        return "Error generating quiz."
 
-# --- AUDIO GENERATION ---
+# --- AUDIO GENERATION (gTTS) ---
 
-async def _generate_audio_async(text, output_path, language="English"):
+def run_tts_sync(text, output_path, language="en"):
     """
-    Internal async function for TTS.
+    Converts text to speech using gTTS (Google Text-to-Speech).
+    This is synchronous and will block until the file is saved.
     """
-    voice_map = {
-        "English": "en-NG-AbeoNeural",
-        "Swahili": "sw-KE-RafikiNeural",
-        "Amharic": "am-ET-MekdesNeural",
-        "Hausa": "ha-NG-DanjumaNeural",
-        "Igbo": "ig-NG-EzinneNeural",
-        "Yoruba": "yo-NG-BolajiNeural",
-        "Zulu": "zu-ZA-ThandoNeural",
-        "Afrikaans": "af-ZA-AdriNeural"
-    }
-    
-    voice = voice_map.get(language, "en-NG-AbeoNeural")
-    
-    try:
-        communicate = edge_tts.Communicate(text, voice)
-        await communicate.save(output_path)
-        return True
-    except Exception as e:
-        logger.error(f"TTS Error: {e}")
+    if not isinstance(text, str) or not text.strip():
+        logger.error("TTS received empty text.")
         return False
 
-def run_tts_sync(text, output_path, language):
-    """
-    Wrapper to run async TTS in synchronous Django views.
-    Creates a new event loop for the operation.
-    """
+    tts_lang_map = {
+        'English': 'en', 'en': 'en',
+        'Yoruba': 'yo', 'yo': 'yo',
+        'Hausa': 'ha', 'ha': 'ha',
+        'Swahili': 'sw', 'sw': 'sw',
+        'French': 'fr', 'fr': 'fr',
+        'Portuguese': 'pt', 'pt': 'pt',
+        # Fallbacks
+        'Igbo': 'en', 'ig': 'en', 
+        'Zulu': 'en', 'zu': 'en',
+        'Afrikaans': 'af', 'af': 'af'
+    }
+    
+    lang_code = tts_lang_map.get(language, 'en')
+    
     try:
-        asyncio.run(_generate_audio_async(text, output_path, language))
+        tts = gTTS(text=text, lang=lang_code, slow=False)
+        tts.save(output_path)
+        return True
     except Exception as e:
-        logger.error(f"Sync TTS Wrapper Error: {e}")
+        logger.error(f"gTTS Error: {e}")
+        return False
