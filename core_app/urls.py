@@ -9,7 +9,7 @@ urlpatterns = [
     path('profile/', views.user_profile, name='user-profile'),
     
     # Document Management
-    path('documents/upload/', views.upload_document, name='upload-document'),
+    path('upload/', views.upload_document, name='upload-document'),
     path('documents/', views.list_documents, name='list-documents'),
     path('documents/<int:document_id>/', views.get_document, name='get-document'),
     path('documents/<int:document_id>/delete/', views.delete_document, name='delete-document'),
