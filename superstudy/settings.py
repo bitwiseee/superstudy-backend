@@ -50,7 +50,7 @@ INSTALLED_APPS = [
     # Installed libraries
     'rest_framework',
     'corsheaders',
-    'drf-yasg'
+    'drf_yasg'
 ]
 
 MIDDLEWARE = [
