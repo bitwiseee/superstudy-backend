@@ -58,12 +58,11 @@ class QuizAdmin(admin.ModelAdmin):
     
     @admin.display(description='Questions')
     def question_count(self, obj):
-        return obj.questions.count()
-
-        # Added a type check to avoid potential errors and for reverse relationships in admin
-        if hasattr(obj, 'questions'):
-            return obj.questions.count()
-        return 0
+        # Use getattr to guard against missing related name and return 0 if not present
+        related = getattr(obj, 'questions', None)
+        if related is None:
+            return 0
+        return related.count()
 
 
 @admin.register(QuizQuestion)

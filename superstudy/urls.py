@@ -64,7 +64,7 @@ schema_view = get_schema_view(
 
 urlpatterns = [
     path('admin/', admin.site.urls),
-    path('api/', include('core_app.urls')),
+    path('', include('core_app.urls')),
     
     # OpenAPI/Swagger URLs
     path('api/docs/', schema_view.with_ui('swagger', cache_timeout=0), name='schema-swagger-ui'),

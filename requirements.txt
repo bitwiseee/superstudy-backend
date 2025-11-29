@@ -31,3 +31,4 @@ Pillow
 requests
 
 drf-yasg
+drf-spectacular
