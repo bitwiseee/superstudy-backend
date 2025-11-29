@@ -2,7 +2,7 @@ import os
 import logging
 import hashlib
 from django.core.cache import cache
-import fitz  # PyMuPDF (Standardizing to use the same lib as utils.py)
+import pymupdf as fitz  # PyMuPDF (Standardizing to use the same lib as utils.py)
 from pptx import Presentation
 import google.generativeai as genai
 from gtts import gTTS

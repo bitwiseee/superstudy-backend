@@ -12,7 +12,7 @@ python-dotenv
 google-generativeai
 
 # Document processing
-PyMuPDF
+pymupdf
 pypdf
 python-pptx
 
