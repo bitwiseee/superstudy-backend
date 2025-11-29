@@ -1,5 +1,5 @@
 from django.contrib import admin
-from .models import (
+from core_app.models import (
     UserProfile, Document, Summary, Flashcard, 
     Quiz, QuizQuestion, QuizAttempt, Chat, UserProgress
 )

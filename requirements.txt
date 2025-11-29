@@ -29,3 +29,5 @@ gunicorn
 # Utilities (just in case)
 Pillow
 requests
+
+drf-yasg

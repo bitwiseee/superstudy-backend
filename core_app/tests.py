@@ -1,6 +1,6 @@
 from django.test import TestCase
 from django.contrib.auth.models import User
-from .models import Document, UserProgress, UserProfile
+from core_app.models import Document, UserProgress, UserProfile
 
 class ModelTests(TestCase):
     def setUp(self):

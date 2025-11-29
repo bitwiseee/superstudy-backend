@@ -19,7 +19,7 @@ class UserProfile(models.Model):
         ('ha', 'Hausa'),
     ]
     id = models.UUIDField(default=uuid4, primary_key=True)
-    user = models.OneToOneField(User, on_delete=models.CASCADE, related_name='profile')
+    user = models.OneToOneField('auth.User', on_delete=models.CASCADE, related_name='profile')
     preferred_language = models.CharField(
         max_length=2, 
         choices=LANGUAGE_CHOICES, 

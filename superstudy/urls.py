@@ -16,13 +16,60 @@ Including another URLconf
 """
 
 from django.contrib import admin
-from django.urls import path, include
+from django.urls import path, include, re_path
 from django.conf import settings
 from django.conf.urls.static import static
+from rest_framework import permissions
+from drf_yasg.views import get_schema_view
+from drf_yasg import openapi
+
+schema_view = get_schema_view(
+    openapi.Info(
+        title="SuperStudy API",
+        default_version='v1',
+        description="""
+        # SuperStudy Platform API Documentation
+        
+        AI-powered learning platform for African students with gamification features.
+        
+        ## Features
+        - 📄 Document upload and processing (PDF, PPTX, TXT)
+        - 📝 AI-powered summaries with key points
+        - 🃏 Flashcard generation for study
+        - 📝 Interactive quizzes with scoring
+        - 💬 Q&A chat with documents
+        - 🔊 Text-to-speech in multiple languages
+        - 🌍 Multi-language support (English, Yoruba, Igbo, Hausa)
+        - 🏆 Gamification (points, levels, badges, leaderboard)
+        
+        ## Authentication
+        All endpoints (except leaderboard) require authentication using:
+        - Basic Authentication
+        - Session Authentication (via Django admin login)
+        
+        ## Getting Started
+        1. Create an account via Django admin
+        2. Click "Authorize" button below
+        3. Enter your username and password
+        4. Try out the endpoints!
+        
+        ## Support
+        - Base URL: `http://localhost:8000/api/`
+        - Admin Panel: `http://localhost:8000/admin/`
+        """
+    ),
+    public=True,
+    permission_classes=(permissions.AllowAny,),
+)
 
 urlpatterns = [
     path('admin/', admin.site.urls),
     path('api/', include('core_app.urls')),
+    
+    # OpenAPI/Swagger URLs
+    path('api/docs/', schema_view.with_ui('swagger', cache_timeout=0), name='schema-swagger-ui'),
+    path('api/redoc/', schema_view.with_ui('redoc', cache_timeout=0), name='schema-redoc'),
+    re_path(r'^api/swagger(?P<format>\.json|\.yaml)$', schema_view.without_ui(cache_timeout=0), name='schema-json'),
 ]
 
 # Serve media files in development

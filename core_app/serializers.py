@@ -3,7 +3,7 @@
 
 from rest_framework import serializers
 from django.contrib.auth.models import User
-from .models import (
+from core_app.models import (
     Document, Chat, UserProgress, UserProfile,
     Summary, Flashcard, Quiz, QuizQuestion, QuizAttempt
 )

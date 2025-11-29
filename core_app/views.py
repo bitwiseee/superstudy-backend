@@ -5,6 +5,8 @@ from rest_framework import status
 from django.shortcuts import get_object_or_404
 from django.db import transaction
 from django.db import models # Fixed: Added missing import
+from drf_yasg.utils import swagger_auto_schema
+from drf_yasg import openapi
 
 from core_app.models import (
     Document, Chat, UserProgress, UserProfile,
