@@ -26,7 +26,19 @@ logger = logging.getLogger(__name__)
 
 
 # ============ USER PROFILE & PREFERENCES ============
-
+@swagger_auto_schema(
+    methods=['get'],
+    operation_summary="Get User Profile",
+    responses={200: UserProfileSerializer},
+    tags=['User Profile']
+)
+@swagger_auto_schema(
+    methods=['put'],
+    operation_summary="Update Language Preference",
+    request_body=LanguagePreferenceSerializer,
+    responses={200: "Updated"},
+    tags=['User Profile']
+)
 @api_view(['GET', 'PUT'])
 @permission_classes([IsAuthenticated])
 def user_profile(request):
@@ -57,7 +69,16 @@ def user_profile(request):
 
 
 # ============ DOCUMENT MANAGEMENT ============
-
+@swagger_auto_schema(
+    method='post',
+    operation_summary="Upload Document",
+    manual_parameters=[
+        openapi.Parameter('file', openapi.IN_FORM, type=openapi.TYPE_FILE, required=True),
+        openapi.Parameter('language', openapi.IN_FORM, type=openapi.TYPE_STRING)
+    ],
+    responses={201: "Success"},
+    tags=['Documents']
+)
 @api_view(['POST'])
 @permission_classes([IsAuthenticated])
 def upload_document(request):
@@ -115,7 +136,12 @@ def upload_document(request):
             status=status.HTTP_500_INTERNAL_SERVER_ERROR
         )
 
-
+@swagger_auto_schema(
+    method='get',
+    operation_summary="List Documents",
+    responses={200: DocumentSerializer(many=True)},
+    tags=['Documents']
+)
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
 def list_documents(request):
@@ -123,7 +149,12 @@ def list_documents(request):
     serializer = DocumentSerializer(documents, many=True, context={'request': request})
     return Response(serializer.data)
 
-
+@swagger_auto_schema(
+    method='get',
+    operation_summary="Get Document",
+    responses={200: DocumentSerializer},
+    tags=['Documents']
+)
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
 def get_document(request, document_id):
@@ -131,7 +162,12 @@ def get_document(request, document_id):
     serializer = DocumentSerializer(document, context={'request': request})
     return Response(serializer.data)
 
-
+@swagger_auto_schema(
+    method='delete',
+    operation_summary="Delete Document",
+    responses={204: "Deleted"},
+    tags=['Documents']
+)
 @api_view(['DELETE'])
 @permission_classes([IsAuthenticated])
 def delete_document(request, document_id):
@@ -144,7 +180,13 @@ def delete_document(request, document_id):
 
 
 # ============ CHAT / Q&A ============
-
+@swagger_auto_schema(
+    method='post',
+    operation_summary="Ask Question",
+    request_body=AskQuestionSerializer,
+    responses={201: "Success"},
+    tags=['Chat & Q&A']
+)
 @api_view(['POST'])
 @permission_classes([IsAuthenticated])
 def ask_question(request):
@@ -208,7 +250,12 @@ def ask_question(request):
             status=status.HTTP_500_INTERNAL_SERVER_ERROR
         )
 
-
+@swagger_auto_schema(
+    method='get',
+    operation_summary="Get Chat History",
+    responses={200: ChatSerializer(many=True)},
+    tags=['Chat & Q&A']
+)
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
 def get_chat_history(request, document_id):
@@ -220,7 +267,12 @@ def get_chat_history(request, document_id):
     serializer = ChatSerializer(chats, many=True, context={'request': request})
     return Response(serializer.data)
 
-
+@swagger_auto_schema(
+    method='post',
+    operation_summary="Generate Audio",
+    responses={200: "Success"},
+    tags=['Chat & Q&A']
+)
 @api_view(['POST'])
 @permission_classes([IsAuthenticated])
 def generate_audio(request, chat_id):
@@ -249,7 +301,13 @@ def generate_audio(request, chat_id):
 
 
 # ============ SUMMARY FEATURE ============
-
+@swagger_auto_schema(
+    method='post',
+    operation_summary="Generate Summary",
+    request_body=GenerateSummarySerializer,
+    responses={201: "Success"},
+    tags=['AI Features - Summaries']
+)
 @api_view(['POST'])
 @permission_classes([IsAuthenticated])
 def create_summary(request):
@@ -316,7 +374,12 @@ def create_summary(request):
             status=status.HTTP_500_INTERNAL_SERVER_ERROR
         )
 
-
+@swagger_auto_schema(
+    method='get',
+    operation_summary="Get Summary",
+    responses={200: SummarySerializer},
+    tags=['AI Features - Summaries']
+)
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
 def get_summary(request, document_id):
@@ -335,7 +398,13 @@ def get_summary(request, document_id):
 
 
 # ============ FLASHCARD FEATURE ============
-
+@swagger_auto_schema(
+    method='post',
+    operation_summary="Generate Flashcards",
+    request_body=GenerateFlashcardsSerializer,
+    responses={201: "Success"},
+    tags=['AI Features - Flashcards']
+)
 @api_view(['POST'])
 @permission_classes([IsAuthenticated])
 def create_flashcards(request):
@@ -409,7 +478,12 @@ def create_flashcards(request):
             status=status.HTTP_500_INTERNAL_SERVER_ERROR
         )
 
-
+@swagger_auto_schema(
+    method='get',
+    operation_summary="Get Flashcards",
+    responses={200: FlashcardSerializer(many=True)},
+    tags=['AI Features - Flashcards']
+)
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
 def get_flashcards(request, document_id):
@@ -428,7 +502,13 @@ def get_flashcards(request, document_id):
 
 
 # ============ QUIZ FEATURE ============
-
+@swagger_auto_schema(
+    method='post',
+    operation_summary="Generate Quiz",
+    request_body=GenerateQuizSerializer,
+    responses={201: "Success"},
+    tags=['AI Features - Quizzes']
+)
 @api_view(['POST'])
 @permission_classes([IsAuthenticated])
 def create_quiz(request):
@@ -499,7 +579,12 @@ def create_quiz(request):
             status=status.HTTP_500_INTERNAL_SERVER_ERROR
         )
 
-
+@swagger_auto_schema(
+    method='get',
+    operation_summary="Get Quiz",
+    responses={200: QuizSerializer},
+    tags=['AI Features - Quizzes']
+)
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
 def get_quiz(request, quiz_id):
@@ -507,7 +592,12 @@ def get_quiz(request, quiz_id):
     serializer = QuizSerializer(quiz, context={'request': request})
     return Response(serializer.data)
 
-
+@swagger_auto_schema(
+    method='get',
+    operation_summary="List Quizzes",
+    responses={200: QuizSerializer(many=True)},
+    tags=['AI Features - Quizzes']
+)
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
 def list_quizzes(request, document_id):
@@ -517,7 +607,13 @@ def list_quizzes(request, document_id):
     serializer = QuizSerializer(quizzes, many=True, context={'request': request})
     return Response(serializer.data)
 
-
+@swagger_auto_schema(
+    method='post',
+    operation_summary="Submit Quiz",
+    request_body=SubmitQuizSerializer,
+    responses={200: "Success"},
+    tags=['AI Features - Quizzes']
+)
 @api_view(['POST'])
 @permission_classes([IsAuthenticated])
 def submit_quiz(request):
@@ -585,7 +681,12 @@ def submit_quiz(request):
 
 
 # ============ DASHBOARD & GAMIFICATION ============
-
+@swagger_auto_schema(
+    method='get',
+    operation_summary="User Dashboard",
+    responses={200: "Success"},
+    tags=['Gamification']
+)
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
 def user_dashboard(request):
@@ -611,7 +712,12 @@ def user_dashboard(request):
         }
     })
 
-
+@swagger_auto_schema(
+    method='get',
+    operation_summary="Leaderboard",
+    responses={200: LeaderboardSerializer(many=True)},
+    tags=['Gamification']
+)
 @api_view(['GET'])
 @permission_classes([AllowAny])
 def leaderboard(request):
