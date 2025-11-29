@@ -108,6 +108,9 @@ except:
             'USER': os.getenv('DB_USER'),
             'PASSWORD': os.getenv('DB_PASSWORD'),
             'PORT': os.getenv('DB_PORT', default=5432),
+            'OPTIONS': {
+                'ssl_mode': 'require',
+            }
         }
     }
 

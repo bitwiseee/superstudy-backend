@@ -21,6 +21,7 @@ gTTS
 
 # Database (PostgreSQL for production)
 psycopg2-binary
+dj-database-url
 
 # Production server
 gunicorn

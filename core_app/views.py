@@ -6,17 +6,17 @@ from django.shortcuts import get_object_or_404
 from django.db import transaction
 from django.db import models # Fixed: Added missing import
 
-from .models import (
+from core_app.models import (
     Document, Chat, UserProgress, UserProfile,
     Summary, Flashcard, Quiz, QuizQuestion, QuizAttempt
 )
-from .serializers import *
-from .utils import process_document
-from .ai_service import (
+from core_app.serializers import *
+from core_app.utils import process_document
+from core_app.ai_service import (
     get_ai_response, generate_summary, generate_flashcards,
     generate_quiz
 )
-from .audio_service import generate_audio_for_chat
+from core_app.audio_service import generate_audio_for_chat
 
 import logging
 

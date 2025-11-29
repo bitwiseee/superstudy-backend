@@ -56,9 +56,14 @@ class QuizAdmin(admin.ModelAdmin):
     inlines = [QuizQuestionInline]
     date_hierarchy = 'created_at'
     
+    @admin.display(description='Questions')
     def question_count(self, obj):
         return obj.questions.count()
-    question_count.short_description = 'Questions'
+
+        # Added a type check to avoid potential errors and for reverse relationships in admin
+        if hasattr(obj, 'questions'):
+            return obj.questions.count()
+        return 0
 
 
 @admin.register(QuizQuestion)
